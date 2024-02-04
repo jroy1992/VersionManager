@@ -7,6 +7,7 @@ Tool to manage cache versions in houdini.
 * Provides the option to delete unused versions of a cache
 
 ## Usage
+Place the version_manager.shelf file in any of the toolbar locations recognized by houdini and relaunch houdini
 
 ## UI
 
