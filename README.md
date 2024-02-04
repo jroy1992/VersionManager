@@ -2,7 +2,7 @@
 Tool to manage cache versions in houdini. 
 
 ## Features
-* Presents list of available versions of all the caches in the houdini scene
+* Presents a list of available versions of all the caches in the houdini scene
 * Enables switching to any available version
 * Provides the option to delete unused versions of a cache
 
@@ -16,10 +16,10 @@ Place the version_manager.shelf file in any of the toolbar locations recognized 
 
 **Name:** Name of the cache in the scene file
 
-**Version:** The current version of the cache in scene file. Dropdown allows switching to any available version of the cache.
+**Version:** The current version of the cache in the scene file. The dropdown allows switching to any available version of the cache.
 
-**Delete Older Versions:** Displays the available older versions of the cache based on the selected version in *Version* column. Provies option to delete the older versions by toggling on the checkbox.
-If there are no older versions available, --- is displayed with checkbox disabled.
+**Delete Older Versions:** Displays the available older versions of the cache based on the selected version in the *Version* column. Provide the option to delete the older versions by toggling on the checkbox.
+If there are no older versions available, --- is displayed with the checkbox disabled.
 
 **Apply:** Updates the version(s) of cache(s) in the scene based on version selected in *Version* column and deletes the older version(s) of the cache(s) if enabled
 
@@ -36,7 +36,7 @@ After hitting the *Apply* button, a dialog pops up with the summary of actions u
 
   > [!NOTE]
   > 
-  > Found that when switched to a new version, sometimes houdini keeps hold of old version and prevents deletion. Houdini needs to be close to release the locked file. 
+  > Found that when switched to a new later version, sometimes houdini keeps hold of the previously selected version file and prevents deletion. Houdini needs to be closed to release the locked file. 
 
 
 * Apply button pressed without any operation selected
