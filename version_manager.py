@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import shutil
 import logging
@@ -152,6 +154,7 @@ class Main(QtWidgets.QMainWindow):
             message = 'Nothing to update or delete.\n'
 
         dialog = QtWidgets.QDialog(self)
+        dialog.resize(300, 200)
         dialog.setWindowTitle('Finished!')
         message_label = QtWidgets.QLabel(message)
         ok_button = QtWidgets.QPushButton('Ok')
@@ -178,6 +181,7 @@ class Main(QtWidgets.QMainWindow):
             item3.setCheckable(True)
             if not item3.text():
                 item3.setEnabled(False)
+                item3.setText('---')
             self.table_model.appendRow((item1, item2, item3))
 
             combo_item = QtWidgets.QComboBox()
