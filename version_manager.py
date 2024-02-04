@@ -37,16 +37,9 @@ class Model(QtGui.QStandardItemModel):
         self.setHorizontalHeaderLabels(headers)
 
 
-class Proxy(QtCore.QSortFilterProxyModel):
-    def __init__(self, *args, **kwargs):
-        super(Proxy, self).__init__(*args, **kwargs)
-        self.setFilterCaseSensitivity(QtCore.Qt.CaseSensitive)
-        self.setFilterKeyColumn(0)
-
-
 class Main(QtWidgets.QMainWindow):
     """
-    The main window that brings together table's proxy, view and model
+    The main window that brings together table's model and view
     """
 
     def __init__(self, *args, **kwargs):
@@ -59,8 +52,6 @@ class Main(QtWidgets.QMainWindow):
 
         self.table_view = View()
         self.table_model = Model()
-        self.table_proxy = Proxy()
-        self.table_proxy.setSourceModel(self.table_model)
         self.table_view.setModel(self.table_model)
 
         # widgets
@@ -71,18 +62,13 @@ class Main(QtWidgets.QMainWindow):
         # layout
         widg = QtWidgets.QWidget(parent=self)
         layout = QtWidgets.QVBoxLayout()
-        filter_layout = QtWidgets.QHBoxLayout()
-        filter_layout.addWidget(self.filter_label)
-        filter_layout.addWidget(self.filter_field)
 
         widg.setLayout(layout)
         self.setCentralWidget(widg)
-        layout.addLayout(filter_layout)
         layout.addWidget(self.table_view)
         layout.addWidget(self.apply)
 
         # signals
-        self.filter_field.textChanged.connect(self.filter)
         self.apply.clicked.connect(self.apply_changes)
 
         # init
@@ -90,8 +76,6 @@ class Main(QtWidgets.QMainWindow):
         self._add_table_data(self.caches_data)
         self.setStyleSheet("QHeaderView {background-color: #232e36; font-weight:600 }"
                            "QPushButton {font-weight:600 }")
-        # self.table_view.setSTyleSheet("")
-        # self.checking()
 
     def filter(self, text):
         self.table_proxy.setFilterFixedString(text)
@@ -164,7 +148,7 @@ class Main(QtWidgets.QMainWindow):
             for name, version in failed_deletions.items():
                 message += '{}: {}\n'.format(name, version)
 
-        if not deleted_versions and not updated_versions:
+        if not deleted_versions and not updated_versions and not failed_deletions:
             message = 'Nothing to update or delete.\n'
 
         dialog = QtWidgets.QDialog(self)
