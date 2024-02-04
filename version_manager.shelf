@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- This file contains definitions of shelves, toolbars, and tools.
+ It should not be hand-edited when it is being used by the application.
+ Note, that two definitions of the same element are not allowed in
+ a single file. -->
+
+  <tool name="simple_manager" label="Simple manager" icon="PLASMA_App">
+    <script scriptType="python"><![CDATA[#!/usr/bin/env python
+
+import os
+import shutil
+import logging
+from pathlib import Path
+
+from PySide2 import QtGui
+from PySide2 import QtCore
+from PySide2 import QtWidgets
+
+CACHE_LOCATION = hou.text.expandString('$HIP/caches/')
+NODETYPE_PARM_MAP = {'filecache': 'file',
+                     'rop_alembic': 'filename'}
+
+
+class View(QtWidgets.QTableView):
+    """
+    Sets the view of the table
+    """
+    def __init__(self, *args, **kwargs):
+        super(View, self).__init__(*args, **kwargs)
+
+        self.setSortingEnabled(True)
+        self.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.verticalHeader().setHidden(True)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.horizontalHeader().setStretchLastSection(True)
+
+
+class Model(QtGui.QStandardItemModel):
+    """
+    Controls the table data
+    """
+    def __init__(self, *args, **kwargs):
+        super(Model, self).__init__(*args, **kwargs)
+        headers = ('Name', 'Version', 'Delete Older Versions')
+        self.setHorizontalHeaderLabels(headers)
+
+
+class Main(QtWidgets.QMainWindow):
+    """
+    The main window that brings together table's model and view
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(Main, self).__init__(*args, **kwargs)
+        self.setObjectName('version_manager')
+
+        # window options
+        self.setWindowTitle('%s - %s' % ('Version Manager', '1.0.0'))
+        self.resize(500, 300)
+
+        self.table_view = View()
+        self.table_model = Model()
+        self.table_view.setModel(self.table_model)
+
+        # widgets
+        self.filter_label = QtWidgets.QLabel('Filter by name:')
+        self.filter_field = QtWidgets.QLineEdit()
+        self.apply = QtWidgets.QPushButton('Apply')
+
+        # layout
+        widg = QtWidgets.QWidget(parent=self)
+        layout = QtWidgets.QVBoxLayout()
+
+        widg.setLayout(layout)
+        self.setCentralWidget(widg)
+        layout.addWidget(self.table_view)
+        layout.addWidget(self.apply)
+
+        # signals
+        self.apply.clicked.connect(self.apply_changes)
+
+        # init
+        self.caches_data = self.get_caches_data_from_scene()
+        self._add_table_data(self.caches_data)
+        self.setStyleSheet("QHeaderView {background-color: #232e36; font-weight:600 }"
+                           "QPushButton {font-weight:600 }")
+
+    def filter(self, text):
+        self.table_proxy.setFilterFixedString(text)
+        self.table_proxy.invalidateFilter()
+
+    def apply_changes(self) -> None:
+        """
+        Applies the operations selected by the user: updating existing cache version in scene or deleting
+        older cache versions on disk
+        :return: None
+        """
+        deleted_versions = {}
+        updated_versions = {}
+        failed_deletions = {}
+
+        for i in range(self.table_view.model().rowCount()):
+            # set selected cache path
+            cache_name = self.table_view.model().item(i, 0).text()
+            selected_version = self.table_view.indexWidget(self.table_view.model().index(i, 1)).currentText()
+            if selected_version != self.caches_data[cache_name]['version']:
+                updated_versions[cache_name] = selected_version
+                new_cache_path = self.caches_data[cache_name]['raw_path'].replace(self.caches_data[cache_name]['version'], selected_version)
+                node = self.caches_data[cache_name]['node']
+                node.parm(NODETYPE_PARM_MAP[node.type().name()]).set(new_cache_path)
+                if node.parm('reload'):
+                    node.parm('reload').pressButton()
+                hou.hipFile.save()
+
+            # delete older version
+            if self.table_view.model().item(i, 2).checkState() == QtCore.Qt.Checked:
+                for version in self.caches_data[cache_name]['available_versions']:
+                    if int(version[1:]) < int(selected_version[1:]):
+                        path = os.path.dirname(self.caches_data[cache_name]['path'].replace(self.caches_data[cache_name]['version'], version))
+                        try:
+                            shutil.rmtree(hou.text.expandString(path))
+                            if cache_name in deleted_versions:
+                                deleted_versions[cache_name].append(version)
+                            else:
+                                deleted_versions[cache_name] = [version]
+                        except Exception as e:
+                            logging.error('Failed to delete version {} of {} due to {}'.format(selected_version, cache_name, e))
+                            if cache_name in failed_deletions:
+                                failed_deletions[cache_name].append(version)
+                            else:
+                                failed_deletions[cache_name] = [version]
+
+        self._finish_dialog(updated_versions, deleted_versions, failed_deletions)
+
+        self.close()
+
+    def _finish_dialog(self, updated_versions: dict, deleted_versions: dict, failed_deletions: dict) -> None:
+        """
+        Dialog giving summary of versions updated, deleted or failed to be deleted.
+        :param updated_versions: For each cache, the new updated version
+        :param deleted_versions: For each cache, versions successfully deleted
+        :param failed_deletions: For each cache, versions failed to be deleted
+        :return: None
+        """
+        message = ''
+        if updated_versions:
+            message += 'Following have been updated:\n\n'
+            for name, version in updated_versions.items():
+                message += '{}: {} -> {}\n'.format(name, self.caches_data[name]['version'], version)
+        if deleted_versions:
+            message += '\nFollowing have been deleted: \n\n'
+            for name, version in deleted_versions.items():
+                message += '{}: {}\n'.format(name, version)
+        if failed_deletions:
+            message += '\nFollowing versions were not deleted. Please check console. \n\n'
+            for name, version in failed_deletions.items():
+                message += '{}: {}\n'.format(name, version)
+
+        if not deleted_versions and not updated_versions and not failed_deletions:
+            message = 'Nothing to update or delete.\n'
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.resize(300, 200)
+        dialog.setWindowTitle('Finished!')
+        message_label = QtWidgets.QLabel(message)
+        ok_button = QtWidgets.QPushButton('Ok')
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(message_label)
+        layout.addWidget(ok_button)
+        dialog.setLayout(layout)
+        ok_button.clicked.connect(dialog.accept)
+        dialog.exec_()
+
+    def _add_table_data(self, data: dict) -> None:
+        """
+        Creates cell item for the table using cache data and updates the table
+        :param data: dict of cache data with cache name as key
+        :return: None
+        """
+        for key, value in data.items():
+            item1 = QtGui.QStandardItem(value['name'])
+            item2 = QtGui.QStandardItem()
+            item3 = QtGui.QStandardItem('{}'.format(', '.join(v for v in value['available_versions']
+                                                              if int(v[1:]) < int(value['version'][1:]))))
+            item1.setEditable(False)
+            item3.setEditable(False)
+            item3.setCheckable(True)
+            if not item3.text():
+                item3.setEnabled(False)
+                item3.setText('---')
+            self.table_model.appendRow((item1, item2, item3))
+
+            combo_item = QtWidgets.QComboBox()
+            combo_item.addItems(value['available_versions'])
+            combo_item.setCurrentText(value['version'])
+            combo_item.currentTextChanged.connect(self._set_delete_version_text)
+            self.table_view.setIndexWidget(item2.index(), combo_item)
+
+    def _set_delete_version_text(self, version: str) -> None:
+        """
+        Set the message for the user to know which versions of the cache will be deleted
+        :param version: new version of cache selected by the user
+        :return: None
+        """
+        for i in range(self.table_view.model().rowCount()):
+            cache_name = self.table_view.model().item(i, 0).text()
+            selected_version = self.table_view.indexWidget(self.table_view.model().index(i, 1)).currentText()
+            delete_text = '{}'.format(', '.join(v for v in self.caches_data[cache_name]['available_versions']
+                                                if int(v[1:]) < int(selected_version[1:])))
+            self.table_view.model().item(i, 2).setText(delete_text)
+            if not delete_text:
+                self.table_view.model().item(i, 2).setText('---')
+                self.table_view.model().item(i, 2).setEnabled(False)
+            else:
+                self.table_view.model().item(i, 2).setEnabled(True)
+
+    # UTILITIES
+
+    @staticmethod
+    def get_caches_data_from_scene() -> dict:
+        """
+        Get data of all the caches in scene: name, version, available versions, node on which cache is present and
+        cache path, both full path and raw path.
+        :return: dict of cache data with cache name as key
+        """
+        cache_data = {}
+        for node_type, parm in NODETYPE_PARM_MAP.items():
+            node_type_instances = hou.nodeType(hou.sopNodeTypeCategory(), node_type).instances()
+            for instance in node_type_instances:
+                node = hou.node(instance.path())
+                cache_path = node.parm(NODETYPE_PARM_MAP[node_type]).eval()
+                if cache_path:
+                    available_versions = os.listdir(os.path.join(CACHE_LOCATION, node.name()))
+                    cache_data[node.name()] = {'name': node.name(),
+                                               'version': Path(cache_path).parts[-2],
+                                               'node': node,
+                                               'available_versions': available_versions,
+                                               'path': cache_path,
+                                               'raw_path': node.parm(NODETYPE_PARM_MAP[node_type]).rawValue()
+                                              }
+        return cache_data
+
+
+window = Main()
+window.show()]]></script>
+  </tool>
+</shelfDocument>
