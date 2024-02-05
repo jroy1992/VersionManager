@@ -133,15 +133,15 @@ class Main(QtWidgets.QMainWindow):
         """
         message = []
         if updated_versions:
-            message.append('Following have been updated:\n\n')
+            message.append('Following have been updated:\n')
             for name, version in updated_versions.items():
                 message.append('{}: {} -> {}\n'.format(name, self.caches_data[name]['version'], version))
         if deleted_versions:
-            message.append('\nFollowing have been deleted: \n\n')
+            message.append('\nFollowing have been deleted: \n')
             for name, version in deleted_versions.items():
                 message.append('{}: {}\n'.format(name, version))
         if failed_deletions:
-            message.append('\nFollowing versions were not deleted. Please check console. \n\n')
+            message.append('\nFollowing versions were not deleted. Please check console. \n')
             for name, version in failed_deletions.items():
                 message.append('{}: {}\n'.format(name, version))
 
