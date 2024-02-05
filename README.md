@@ -1,5 +1,5 @@
 # VersionManager
-Tool to manage cache versions in houdini. 
+Tool to manage cache versions in houdini (used houdini19.5 to create). 
 
 ## Features
 * Presents a list of available versions of all the caches in the houdini scene
