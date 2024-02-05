@@ -113,16 +113,11 @@ class Main(QtWidgets.QMainWindow):
                         path = os.path.dirname(self.caches_data[cache_name]['path'].replace(self.caches_data[cache_name]['version'], version))
                         try:
                             shutil.rmtree(hou.text.expandString(path))
-                            if cache_name in deleted_versions:
-                                deleted_versions[cache_name].append(version)
-                            else:
-                                deleted_versions[cache_name] = [version]
-                        except Exception as e:
-                            logging.error('Failed to delete version {} of {} due to {}'.format(selected_version, cache_name, e))
-                            if cache_name in failed_deletions:
-                                failed_deletions[cache_name].append(version)
-                            else:
-                                failed_deletions[cache_name] = [version]
+                            deleted_versions.setdefault(cache_name, []).append(version)
+                        except OSError as e:
+                            logging.error(
+                                'Failed to delete version {} of {} due to {}'.format(selected_version, cache_name, e))
+                            failed_deletions.setdefault(cache_name, []).append(version)
 
         self._finish_dialog(updated_versions, deleted_versions, failed_deletions)
 
@@ -136,27 +131,27 @@ class Main(QtWidgets.QMainWindow):
         :param failed_deletions: For each cache, versions failed to be deleted
         :return: None
         """
-        message = ''
+        message = []
         if updated_versions:
-            message += 'Following have been updated:\n\n'
+            message.append('Following have been updated:\n\n')
             for name, version in updated_versions.items():
-                message += '{}: {} -> {}\n'.format(name, self.caches_data[name]['version'], version)
+                message.append('{}: {} -> {}\n'.format(name, self.caches_data[name]['version'], version))
         if deleted_versions:
-            message += '\nFollowing have been deleted: \n\n'
+            message.append('\nFollowing have been deleted: \n\n')
             for name, version in deleted_versions.items():
-                message += '{}: {}\n'.format(name, version)
+                message.append('{}: {}\n'.format(name, version))
         if failed_deletions:
-            message += '\nFollowing versions were not deleted. Please check console. \n\n'
+            message.append('\nFollowing versions were not deleted. Please check console. \n\n')
             for name, version in failed_deletions.items():
-                message += '{}: {}\n'.format(name, version)
+                message.append('{}: {}\n'.format(name, version))
 
         if not deleted_versions and not updated_versions and not failed_deletions:
-            message = 'Nothing to update or delete.\n'
+            message.append('Nothing to update or delete.\n')
 
         dialog = QtWidgets.QDialog(self)
         dialog.resize(300, 200)
         dialog.setWindowTitle('Finished!')
-        message_label = QtWidgets.QLabel(message)
+        message_label = QtWidgets.QLabel('\n'.join(message))
         ok_button = QtWidgets.QPushButton('Ok')
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(message_label)
